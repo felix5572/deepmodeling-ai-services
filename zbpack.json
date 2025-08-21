@@ -1,0 +1,8 @@
+{
+  "build_command": "pip install -e .",
+  "start_command": "cd deepmd_ai_services && python manage.py collectstatic --noinput && python manage.py migrate && gunicorn deepmd_ai_services.wsgi:application --bind 0.0.0.0:$PORT",
+  "install_command": "pip install -e .",
+  "environment": {
+    "PYTHONPATH": "/opt/zeabur/project"
+  }
+}
