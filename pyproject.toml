@@ -43,6 +43,8 @@ dev = [
     "isort>=5.12.0",
     "flake8>=6.0.0",
     "mypy>=1.5.0",
+    "pydantic>=2.0.0",
+    "modal>=1.1.0",
 ]
 
 [project.urls]
