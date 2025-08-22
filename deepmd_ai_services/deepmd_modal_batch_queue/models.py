@@ -154,14 +154,14 @@ class Queuejob(models.Model):
         help_text="Command or parameters to execute"
     )
     environment_vars = models.JSONField(
-        default=lambda: {},
+        default=dict,
         blank=True,
         help_text="Environment variables as JSON"
     )
     
     # Status tracking
     status_history = models.JSONField(
-        default=lambda: [],
+        default=list,
         blank=True,
         help_text="Status change history as JSON array"
     )
