@@ -147,6 +147,12 @@ class Queuejob(models.Model):
         max_length=100,
         help_text="Modal function name"
     )
+
+    modal_volume_name = models.CharField(
+        blank=True,
+        max_length=100,
+        help_text="Modal volume name"
+    )
     
     # Execution configuration
     command = models.TextField(
