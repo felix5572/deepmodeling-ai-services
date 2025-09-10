@@ -52,7 +52,7 @@ INSTALLED_APPS = [
     'users',
     'rest_framework',
     'corsheaders',
-    'deepmd_modal_batch_queue',
+    # 'deepmd_modal_batch_queue',
 ]
 
 AUTH_USER_MODEL = 'users.User'
