@@ -1,0 +1,246 @@
+import os
+from jose import jwt
+import json
+import base64
+from datetime import timedelta
+from functools import wraps
+from typing import Optional
+
+from ninja import Router, Schema, Field
+from django.http import HttpResponseRedirect, JsonResponse, HttpResponse
+from django.utils import timezone
+from workos import WorkOSClient
+from urllib.parse import urlencode
+from users.models import User
+from loguru import logger
+users_router = Router()
+
+
+# MODAL_JUPYTER_SERVICE_ENDPOINT=""
+# Schemas
+class JWTExchangeSchema(Schema):
+    external_jwt: str
+    next_url: str = Field(default="/dashboard")
+
+class JWTValidateSchema(Schema):
+    token: str
+
+# Services
+class WorkOSService:
+    def __init__(self):
+        self.client = WorkOSClient(
+            api_key=os.getenv("WORKOS_API_KEY"),
+            client_id=os.getenv("WORKOS_CLIENT_ID")
+        )
+    
+    def get_authorization_url(self, next_url: str = None):
+        state = base64.urlsafe_b64encode(
+            json.dumps({"next": next_url}).encode()
+        ).decode() if next_url else None
+        
+        return self.client.user_management.get_authorization_url(
+            provider="authkit",
+            # redirect_uri=os.getenv("WORKOS_REDIRECT_URI"),
+            state=state
+        )
+    
+    def authenticate_with_code(self, code: str):
+        return self.client.user_management.authenticate_with_code(
+            code=code,
+            session={"seal_session": True}
+        )
+
+class JWTService:
+    def __init__(self):
+        self.django_jwt_private_key = os.getenv("DJANGO_JWT_PRIVATE_KEY")
+        self.django_jwt_public_key = os.getenv("DJANGO_JWT_PUBLIC_KEY")
+        self.algorithm = "RS256"
+        self.token_expire = timedelta(days=7)  # 单个 token，7 天有效期
+    
+    def generate_token(self, user: User):
+        payload = {
+            "user_id": user.user_id,
+            "username": user.username,
+            "auth_provider": user.auth_provider,
+            "exp": timezone.now() + self.token_expire
+        }
+        return jwt.encode(payload, self.django_jwt_private_key, algorithm=self.algorithm)
+    
+    def validate_token(self, token: str):
+        payload = jwt.decode(token, self.django_jwt_public_key, algorithms=[self.algorithm])
+        user = User.objects.get(user_id=payload["user_id"])
+        return user, payload
+
+# Services instances
+workos_service = WorkOSService()
+jwt_service = JWTService()
+
+# Decorators
+def auth_required(view_func):
+    @wraps(view_func)
+    def wrapper(request, *args, **kwargs):
+        auth_header = request.headers.get('Authorization')
+        auth_token = auth_header[7:]  # remove "Bearer "
+        user, payload = jwt_service.validate_token(auth_token)
+        request.user = user
+        return view_func(request, *args, **kwargs)
+    return wrapper
+
+# Auth endpoints
+@users_router.get("/auth/authorize")
+def get_authorization_url(request, provider: str = "authkit", next: str = None):
+    """Get WorkOS authkit authorization URL"""
+    authorization_url = workos_service.get_authorization_url(next)
+    return HttpResponseRedirect(authorization_url)
+
+@users_router.get("/auth/callback")
+def workos_callback(request, code: str, state: str = None):
+    """Handle WorkOS callback"""
+    auth_response = workos_service.authenticate_with_code(code)
+    workos_user = auth_response.user
+    
+    user, created = User.objects.get_or_create(
+        user_id=f"workos__{workos_user.id}",
+        defaults={
+            'username': workos_user.email,
+            'email': workos_user.email,
+            'first_name': workos_user.first_name or '',
+            'last_name': workos_user.last_name or '',
+            'auth_provider': 'workos'
+        }
+    )
+    
+    auth_token = jwt_service.generate_token(user)
+    
+    default_nexturl = "/dashboard"
+    if state:
+        decoded_state = json.loads(base64.urlsafe_b64decode(state).decode())
+        nexturl = decoded_state.get("next", default_nexturl)
+    else:
+        nexturl = default_nexturl
+    
+    redirect_url = f"/auth/success?auth_token={auth_token}&next={nexturl}"
+    response = HttpResponseRedirect(redirect_url)
+
+    return response
+
+
+@users_router.get("/auth/success")
+def auth_success(request, auth_token: str, nexturl: str):
+    html = f"""
+    <html>
+        <head><title>auth success</title></head>
+        <body style="font-family: Arial; text-align: center; padding: 50px;">
+            <h2>🎉 auth success!</h2>
+            <p>redirecting to target page... nexturl: {nexturl}</p>
+            <script>
+                localStorage.setItem('auth_token', '{auth_token}');
+                fetch('{nexturl}', {{
+                    headers: {{ 'Authorization': `Bearer {auth_token}` }}
+                }}).then(() => window.location.href = '{nexturl}');
+            </script>
+        </body>
+    </html>
+    """
+    return HttpResponse(html)
+
+
+
+@users_router.post("/auth/logout")
+def logout(request, next: str = "/"):
+    """Logout user"""
+    response = HttpResponseRedirect(next)
+    return response
+
+# JWT endpoints
+@users_router.post("/jwt/issue")
+@auth_required
+def issue_jwt(request):
+    """Issue new JWT token"""
+    auth_token = jwt_service.generate_token(request.user)
+    return {
+        "access_token": auth_token,
+        "token_type": "bearer",
+        "expires_in": 7*24*3600  # 7 days in seconds
+    }
+
+@users_router.post("/jwt/bohrium-proxy/callback")
+def callback_bohrium_proxy_jwt(request, data: JWTExchangeSchema):
+    """Callback for external JWT"""
+    external_payload = jwt.decode(
+        data.external_jwt,
+        key=os.getenv("BOHRIUM_PROXY_JWT_PUBLIC_KEY"),
+        options={"verify_signature": False}
+    )
+    user_data = external_payload['user_data']
+    # user_id = 
+    logger.info(f"user_data: {user_data}")
+
+
+    external_id = user_data['user_id']
+    user_id = f"user__bohrium-proxy__{external_id}"
+    username = f"bohrium-proxy__{user_data['name']}"
+    organization = f"bohrium-proxy__{user_data['org_id']}"
+
+    user, created = User.objects.get_or_create(
+        user_id=user_id,
+        defaults={
+            'username': username,
+            'email': user_data.get("email", ""),
+            'auth_provider': 'bohrium-proxy',
+            'external_id': external_id,
+            'organization': organization
+        }
+    )
+
+    nexturl = f"{MODAL_JUPYTER_SERVICE_ENDPOINT}/users/{user_id}/sandbox"
+    
+    auth_token = jwt_service.generate_token(user)
+
+    redirect_url = f"/auth/success?auth_token={auth_token}&nexturl={nexturl}"
+    return HttpResponseRedirect(redirect_url)
+    
+
+@users_router.post("/jwt/validate")
+def validate_jwt(request, data: JWTValidateSchema):
+    """Validate JWT token"""
+    user, payload = jwt_service.validate_token(data.token)
+    
+    return {
+        "valid": True,
+        "user_id": user.user_id,
+        "username": user.username,
+        "email": user.email,
+        "auth_provider": user.auth_provider,
+        "organization": user.organization,
+        "exp": payload.get("exp")
+    }
+
+# User endpoints
+@users_router.get("/profile")
+@auth_required
+def get_profile(request):
+    """Get user profile"""
+    return {
+        "user_id": request.user.user_id,
+        "username": request.user.username,
+        "email": request.user.email,
+        "auth_provider": request.user.auth_provider,
+        "organization": request.user.organization
+    }
+
+@users_router.get("/me")
+@auth_required
+def get_current_user(request):
+    """Get current authenticated user"""
+    return {
+        "id": request.user.id,
+        "user_id": request.user.user_id,
+        "username": request.user.username,
+        "email": request.user.email,
+        "first_name": request.user.first_name,
+        "last_name": request.user.last_name,
+        "auth_provider": request.user.auth_provider,
+        "external_id": request.user.external_id,
+        "organization": request.user.organization,
+    }
