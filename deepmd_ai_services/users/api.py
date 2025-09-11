@@ -139,15 +139,14 @@ def workos_callback(request, code: str, state: str = None):
     return response
 
 
-@users_router.get("/dashboard", dependencies=[Depends(get_current_auth_user_dep)])
+@users_router.get("/dashboard")
 @auth_required  
 def dashboard(request):
     """Debug dashboard - reuse existing get_current_user logic"""
-    # 直接调用现有函数获取数据
-    user_data = get_current_user(request)
-    
-    import json
-    user_json = json.dumps(user_data, indent=2, ensure_ascii=False, default=str)
+
+    user_schema = UserResponseSchema.from_orm(request.user)
+    user_dict = user_schema.dict()
+    user_json = json.dumps(user_dict, indent=2, ensure_ascii=False, default=str)
     
     html = f"""
     <h1>Debug Dashboard</h1>
@@ -269,16 +268,16 @@ class UserResponseSchema(ModelSchema):
         model = User
         fields = ["id", "user_id", "username", "email", "first_name", "last_name", "auth_provider", "external_id", "organization"]
 
-def _get_current_user(request):
-    """Get current authenticated user as dict"""
+def _get_current_user(request) -> UserResponseSchema:
+    """Get current authenticated user as UserResponseSchema"""
     user_schema = UserResponseSchema.from_orm(request.user)
-    user_dict = user_schema.dict()
-    return user_dict
+    return user_schema
 
 @users_router.get("/me", response=UserResponseSchema)
 @auth_required  
 def api_me(request):
-    user_dict = _get_current_user(request)
+    user_schema = _get_current_user(request)
+    user_dict = user_schema.dict()
     return user_dict
 
 
