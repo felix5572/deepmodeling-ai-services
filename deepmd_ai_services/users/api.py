@@ -91,6 +91,8 @@ def auth_required(view_func):
         auth_header = request.headers.get('Authorization')
         if auth_header and auth_header.startswith('Bearer '):
             auth_token = auth_header[7:]
+        elif request.COOKIES.get('auth_token'):
+            auth_token = request.COOKIES.get('auth_token')
         elif request.GET.get('auth_token'):
             auth_token = request.GET.get('auth_token')
         else:
@@ -138,24 +140,6 @@ def workos_callback(request, code: str, state: str = None):
 
     return response
 
-
-@users_router.get("/dashboard")
-@auth_required  
-def dashboard(request):
-    """Debug dashboard - reuse existing get_current_user logic"""
-
-    user_schema = UserResponseSchema.from_orm(request.user)
-    user_dict = user_schema.dict()
-    user_json = json.dumps(user_dict, indent=2, ensure_ascii=False, default=str)
-    
-    html = f"""
-    <h1>Debug Dashboard</h1>
-    <h2>User Data (same as /api/users/me)</h2>
-    <pre>{user_json}</pre>
-    <p><a href="/api/users/me">Raw JSON endpoint</a> | <a href="/api/users/auth/logout">Logout</a></p>
-    """
-    return HttpResponse(html)
-
 @users_router.get("/auth/success")
 def auth_success(request, auth_token: str, nexturl: str):
     html = f"""
@@ -164,14 +148,39 @@ def auth_success(request, auth_token: str, nexturl: str):
         <body style="font-family: Arial; text-align: center; padding: 50px;">
             <h2>🎉 auth success!</h2>
             <p>redirecting to target page... nexturl: {nexturl}</p>
+            <p>redirecting to target page... your jwt token: {auth_token}</p>
             <script>
-                localStorage.setItem('auth_token', '{auth_token}');
-                fetch('{nexturl}', {{
-                    headers: {{ 'Authorization': `Bearer {auth_token}` }}
-                }}).then(() => window.location.href = '{nexturl}');
+                setTimeout(() => window.location.href = '{nexturl}', 1000);
             </script>
         </body>
     </html>
+    """
+
+    response = HttpResponse(html)
+    response.set_cookie(
+        "auth_token",
+        auth_token,
+        max_age=7*24*3600,
+        secure=True,
+        httponly=True,
+        samesite="lax"
+    )
+    return response
+
+@users_router.get("/dashboard")
+@auth_required  
+def dashboard(request):
+    """Debug dashboard - reuse existing get_current_user logic"""
+
+    user_schema = _get_current_user(request)
+    user_dict = user_schema.dict()
+    user_json = json.dumps(user_dict, indent=2, ensure_ascii=False, default=str)
+    
+    html = f"""
+    <h1>Debug Dashboard</h1>
+    <h2>User Data (same as /api/users/me)</h2>
+    <pre>{user_json}</pre>
+    <p><a href="/api/users/me">Raw JSON endpoint</a> | <a href="/api/users/auth/logout">Logout</a></p>
     """
     return HttpResponse(html)
 
