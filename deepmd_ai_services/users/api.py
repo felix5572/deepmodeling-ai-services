@@ -69,7 +69,10 @@ class JWTService:
     
     def validate_token(self, token: str):
         payload = jwt.decode(token, self.django_jwt_public_key, algorithms=[self.algorithm])
-        user = User.objects.get(user_id=payload["user_id"])
+        user_id = payload["user_id"]
+        if user_id is None:
+            raise ValueError("user_id cannot be None")
+        user = User.objects.get(user_id=user_id)
         return user, payload
 
 # Services instances
