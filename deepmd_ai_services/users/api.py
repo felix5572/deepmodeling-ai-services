@@ -263,19 +263,18 @@ def validate_jwt(request, data: JWTValidateSchema):
         "exp": payload.get("exp")
     }
 
-# User endpoints
-@users_router.get("/profile")
-@auth_required
-def get_profile(request):
-    """Get user profile"""
-    return {
-        "user_id": request.user.user_id,
-        "username": request.user.username,
-        "email": request.user.email,
-        "auth_provider": request.user.auth_provider,
-        "organization": request.user.organization
-    }
 
+@users_router.get("/jwt")
+@auth_required
+def get_jwt(request, expire_in: int = 7*24*3600):
+    """Get user JWT"""
+    if expire_in > 90*24*3600:
+        res = {"error": "Expire time too long"}, 400 
+    else:
+        auth_token = jwt_service.generate_token(request.user, expire_in)
+        res = {"auth_token": auth_token, "expires_in": expire_in}
+    return res
+    
 
 class UserResponseSchema(ModelSchema):
     class Meta:
