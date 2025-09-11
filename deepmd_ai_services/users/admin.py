@@ -8,7 +8,7 @@ from unfold.forms import AdminPasswordChangeForm, UserChangeForm, UserCreationFo
 from .models import User
 
 
-admin.site.unregister(User)
+# admin.site.unregister(User) # has been unregistered in settings.py via  AUTH_USER_MODEL = 'users.User' 
 admin.site.unregister(Group)
 
 @admin.register(User)
