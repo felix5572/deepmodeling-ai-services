@@ -47,7 +47,6 @@ class WorkOSService:
     def authenticate_with_code(self, code: str):
         return self.client.user_management.authenticate_with_code(
             code=code,
-            session={"seal_session": True}
         )
 
 class JWTService:
