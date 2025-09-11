@@ -1,8 +1,22 @@
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin
+from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
+from django.contrib.auth.models import Group
+from django.contrib.auth.admin import GroupAdmin as BaseGroupAdmin
+from unfold.admin import ModelAdmin
+from unfold.forms import AdminPasswordChangeForm, UserChangeForm, UserCreationForm
 from .models import User
 
-class CustomUserAdmin(UserAdmin):
+
+admin.site.unregister(User)
+admin.site.unregister(Group)
+
+@admin.register(User)
+class CustomUserAdmin(BaseUserAdmin, ModelAdmin):
+    form = UserChangeForm
+    add_form = UserCreationForm
+    change_password_form = AdminPasswordChangeForm
+
     # 在列表页显示的字段
     list_display = ('username', 'email', 'user_id', 'auth_provider', 'organization', 'is_active', 'date_joined')
     
@@ -13,17 +27,20 @@ class CustomUserAdmin(UserAdmin):
     list_filter = ('auth_provider', 'organization', 'is_active', 'is_staff', 'date_joined')
     
     # 详情页字段布局
-    fieldsets = UserAdmin.fieldsets + (
+    fieldsets = BaseUserAdmin.fieldsets + (
         ('Extended Information', {
             'fields': ('user_id', 'auth_provider', 'external_id', 'organization')
         }),
     )
     
     # 添加用户时的字段
-    add_fieldsets = UserAdmin.add_fieldsets + (
+    add_fieldsets = BaseUserAdmin.add_fieldsets + (
         ('Extended Information', {
             'fields': ('user_id', 'auth_provider', 'external_id', 'organization')
         }),
     )
 
-admin.site.register(User, CustomUserAdmin)
+@admin.register(Group)
+class GroupAdmin(BaseGroupAdmin, ModelAdmin):
+    pass
+
