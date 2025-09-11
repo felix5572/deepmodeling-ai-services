@@ -38,6 +38,7 @@ dependencies = [
     "python-jose[cryptography]>=3.3.0",
     "workos>=5.0.0",
     "django-ninja>=1.0.0",
+    "loguru>=0.7.0",
 ]
 
 [project.optional-dependencies]
