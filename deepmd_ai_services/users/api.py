@@ -116,12 +116,12 @@ def workos_callback(request, code: str, state: str = None):
     workos_user = auth_response.user
     
     user, created = User.objects.get_or_create(
-        user_id=f"workos__{workos_user.id}",
+        user_id=f"user__workos__{workos_user.id}",
         defaults={
             'username': workos_user.email,
             'email': workos_user.email,
-            'first_name': workos_user.first_name or '',
-            'last_name': workos_user.last_name or '',
+            'first_name': workos_user.first_name,
+            'last_name': workos_user.last_name,
             'auth_provider': 'workos'
         }
     )
