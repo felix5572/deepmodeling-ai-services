@@ -8,7 +8,7 @@ from typing import Optional
 
 from ninja import Router, Schema, Field
 from ninja import ModelSchema
-from django.http import HttpResponseRedirect, JsonResponse, HttpResponse
+from django.http import HttpResponseRedirect, JsonResponse, HttpResponse, HttpRequest
 from django.utils import timezone
 from workos import WorkOSClient
 from urllib.parse import urlencode
@@ -87,7 +87,7 @@ jwt_service = JWTService()
 # Decorators
 def auth_required(view_func):
     @wraps(view_func)
-    def wrapper(request, *args, **kwargs):
+    def wrapper(request: HttpRequest, *args, **kwargs):
         auth_header = request.headers.get('Authorization')
         if auth_header and auth_header.startswith('Bearer '):
             auth_token = auth_header[7:]
