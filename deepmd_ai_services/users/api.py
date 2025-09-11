@@ -114,14 +114,18 @@ def workos_callback(request, code: str, state: str = None):
     """Handle WorkOS callback"""
     auth_response = workos_service.authenticate_with_code(code)
     workos_user = auth_response.user
+
+    user_id = f"user__workos__{workos_user.id}"
+    username = f"default_username__workos__{workos_user.id}"
     
     user, created = User.objects.get_or_create(
-        user_id=f"user__workos__{workos_user.id}",
+        user_id=user_id,
         defaults={
-            'username': workos_user.email,
+            'username': username,
             'email': workos_user.email,
             'first_name': workos_user.first_name,
             'last_name': workos_user.last_name,
+            'external_id': workos_user.id,
             'auth_provider': 'workos'
         }
     )
@@ -219,14 +223,15 @@ def callback_bohrium_proxy_jwt(request, data: JWTExchangeSchema):
 
     external_id = user_data['user_id']
     user_id = f"user__bohrium-proxy__{external_id}"
-    username = f"bohrium-proxy__{user_data['name']}"
+    username = f"default_username__bohrium-proxy__{user_data['name']}"
     organization = f"bohrium-proxy__{user_data['org_id']}"
+    email = user_data.get("email", None)
 
     user, created = User.objects.get_or_create(
         user_id=user_id,
         defaults={
             'username': username,
-            'email': user_data.get("email", ""),
+            'email': email,
             'auth_provider': 'bohrium-proxy',
             'external_id': external_id,
             'organization': organization
