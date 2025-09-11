@@ -81,9 +81,12 @@ def auth_required(view_func):
     @wraps(view_func)
     def wrapper(request, *args, **kwargs):
         auth_header = request.headers.get('Authorization')
-        if not auth_header or not auth_header.startswith('Bearer '):
+        if auth_header and auth_header.startswith('Bearer '):
+            auth_token = auth_header[7:]
+        elif request.GET.get('auth_token'):
+            auth_token = request.GET.get('auth_token')
+        else:
             return JsonResponse({'error': 'Missing or invalid Authorization header'}, status=401)
-        auth_token = auth_header[7:]  # remove "Bearer "
         user, payload = jwt_service.validate_token(auth_token)
         request.user = user
         return view_func(request, *args, **kwargs)
