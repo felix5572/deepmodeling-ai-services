@@ -18,9 +18,11 @@ users_router = Router()
 
 # MODAL_JUPYTER_SERVICE_ENDPOINT=""
 # Schemas
+# default_nexturl = 
+DEFAULT_NEXTURL = "/api/users/dashboard"
 class JWTExchangeSchema(Schema):
     external_jwt: str
-    next_url: str = Field(default="/dashboard")
+    nexturl: str = Field(default=DEFAULT_NEXTURL)
 
 class JWTValidateSchema(Schema):
     token: str
@@ -33,10 +35,10 @@ class WorkOSService:
             client_id=os.getenv("WORKOS_CLIENT_ID")
         )
     
-    def get_authorization_url(self, next_url: str = None):
+    def get_authorization_url(self, nexturl: str = None):
         state = base64.urlsafe_b64encode(
-            json.dumps({"next": next_url}).encode()
-        ).decode() if next_url else None
+            json.dumps({"nexturl": nexturl}).encode()
+        ).decode() if nexturl else None
         
         return self.client.user_management.get_authorization_url(
             provider="authkit",
@@ -79,6 +81,8 @@ def auth_required(view_func):
     @wraps(view_func)
     def wrapper(request, *args, **kwargs):
         auth_header = request.headers.get('Authorization')
+        if not auth_header or not auth_header.startswith('Bearer '):
+            return JsonResponse({'error': 'Missing or invalid Authorization header'}, status=401)
         auth_token = auth_header[7:]  # remove "Bearer "
         user, payload = jwt_service.validate_token(auth_token)
         request.user = user
@@ -87,9 +91,9 @@ def auth_required(view_func):
 
 # Auth endpoints
 @users_router.get("/auth/authorize")
-def get_authorization_url(request, provider: str = "authkit", next: str = None):
+def get_authorization_url(request, provider: str = "authkit", nexturl: str = None):
     """Get WorkOS authkit authorization URL"""
-    authorization_url = workos_service.get_authorization_url(next)
+    authorization_url = workos_service.get_authorization_url(nexturl)
     return HttpResponseRedirect(authorization_url)
 
 @users_router.get("/auth/callback")
@@ -111,18 +115,36 @@ def workos_callback(request, code: str, state: str = None):
     
     auth_token = jwt_service.generate_token(user)
     
-    default_nexturl = "/dashboard"
+    
     if state:
         decoded_state = json.loads(base64.urlsafe_b64decode(state).decode())
-        nexturl = decoded_state.get("next", default_nexturl)
+        nexturl = decoded_state.get("nexturl", DEFAULT_NEXTURL)
     else:
-        nexturl = default_nexturl
+        nexturl = DEFAULT_NEXTURL
     
-    redirect_url = f"/auth/success?auth_token={auth_token}&next={nexturl}"
+    redirect_url = f"/api/users/auth/success?auth_token={auth_token}&nexturl={nexturl}"
     response = HttpResponseRedirect(redirect_url)
 
     return response
 
+
+@users_router.get("/dashboard")
+@auth_required  
+def dashboard(request):
+    """Debug dashboard - reuse existing get_current_user logic"""
+    # 直接调用现有函数获取数据
+    user_data = get_current_user(request)
+    
+    import json
+    user_json = json.dumps(user_data, indent=2, ensure_ascii=False, default=str)
+    
+    html = f"""
+    <h1>Debug Dashboard</h1>
+    <h2>User Data (same as /api/users/me)</h2>
+    <pre>{user_json}</pre>
+    <p><a href="/api/users/me">Raw JSON endpoint</a> | <a href="/api/users/auth/logout">Logout</a></p>
+    """
+    return HttpResponse(html)
 
 @users_router.get("/auth/success")
 def auth_success(request, auth_token: str, nexturl: str):
@@ -146,9 +168,9 @@ def auth_success(request, auth_token: str, nexturl: str):
 
 
 @users_router.post("/auth/logout")
-def logout(request, next: str = "/"):
+def logout(request, nexturl: str = '/'):
     """Logout user"""
-    response = HttpResponseRedirect(next)
+    response = HttpResponseRedirect(nexturl)
     return response
 
 # JWT endpoints
@@ -192,11 +214,13 @@ def callback_bohrium_proxy_jwt(request, data: JWTExchangeSchema):
         }
     )
 
-    nexturl = f"{MODAL_JUPYTER_SERVICE_ENDPOINT}/users/{user_id}/sandbox"
+    # nexturl = f"{MODAL_JUPYTER_SERVICE_ENDPOINT}/users/{user_id}/sandbox"
+    # nexturl = f"/api/users/dashboard"
+    nexturl = data.nexturl
     
     auth_token = jwt_service.generate_token(user)
 
-    redirect_url = f"/auth/success?auth_token={auth_token}&nexturl={nexturl}"
+    redirect_url = f"/api/users/auth/success?auth_token={auth_token}&nexturl={nexturl}"
     return HttpResponseRedirect(redirect_url)
     
 
