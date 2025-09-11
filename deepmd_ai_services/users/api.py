@@ -7,12 +7,17 @@ from functools import wraps
 from typing import Optional
 
 from ninja import Router, Schema, Field
+from ninja import ModelSchema
 from django.http import HttpResponseRedirect, JsonResponse, HttpResponse
 from django.utils import timezone
 from workos import WorkOSClient
 from urllib.parse import urlencode
 from users.models import User
 from loguru import logger
+
+
+
+
 users_router = Router()
 
 
@@ -71,7 +76,7 @@ class JWTService:
         payload = jwt.decode(token, self.django_jwt_public_key, algorithms=[self.algorithm])
         user_id = payload["user_id"]
         if user_id is None:
-            raise ValueError("user_id cannot be None")
+            raise jwt.InvalidTokenError("user_id cannot be None")
         user = User.objects.get(user_id=user_id)
         return user, payload
 
@@ -134,7 +139,7 @@ def workos_callback(request, code: str, state: str = None):
     return response
 
 
-@users_router.get("/dashboard")
+@users_router.get("/dashboard", dependencies=[Depends(get_current_auth_user_dep)])
 @auth_required  
 def dashboard(request):
     """Debug dashboard - reuse existing get_current_user logic"""
@@ -258,18 +263,22 @@ def get_profile(request):
         "organization": request.user.organization
     }
 
-@users_router.get("/me")
-@auth_required
-def get_current_user(request):
-    """Get current authenticated user"""
-    return {
-        "id": request.user.id,
-        "user_id": request.user.user_id,
-        "username": request.user.username,
-        "email": request.user.email,
-        "first_name": request.user.first_name,
-        "last_name": request.user.last_name,
-        "auth_provider": request.user.auth_provider,
-        "external_id": request.user.external_id,
-        "organization": request.user.organization,
-    }
+
+class UserResponseSchema(ModelSchema):
+    class Meta:
+        model = User
+        fields = ["id", "user_id", "username", "email", "first_name", "last_name", "auth_provider", "external_id", "organization"]
+
+def _get_current_user(request):
+    """Get current authenticated user as dict"""
+    user_schema = UserResponseSchema.from_orm(request.user)
+    user_dict = user_schema.dict()
+    return user_dict
+
+@users_router.get("/me", response=UserResponseSchema)
+@auth_required  
+def api_me(request):
+    user_dict = _get_current_user(request)
+    return user_dict
+
+
