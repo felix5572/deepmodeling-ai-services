@@ -61,14 +61,13 @@ class JWTService:
         self.django_jwt_private_key = os.getenv("DJANGO_JWT_PRIVATE_KEY")
         self.django_jwt_public_key = os.getenv("DJANGO_JWT_PUBLIC_KEY")
         self.algorithm = "RS256"
-        self.token_expire = timedelta(days=7)  # 单个 token，7 天有效期
     
-    def generate_token(self, user: User):
+    def generate_token(self, user: User, expire_in: int = 7*24*3600):
         payload = {
             "user_id": user.user_id,
             "username": user.username,
             "auth_provider": user.auth_provider,
-            "exp": timezone.now() + self.token_expire
+            "exp": timezone.now() + timedelta(seconds=expire_in)
         }
         return jwt.encode(payload, self.django_jwt_private_key, algorithm=self.algorithm)
     
