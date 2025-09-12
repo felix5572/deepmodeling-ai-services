@@ -6,7 +6,7 @@ from datetime import timedelta
 from functools import wraps
 from typing import Optional
 
-from ninja import Router, Schema, Field
+from ninja import Router, Schema, Field, Form
 from ninja import ModelSchema
 from django.http import HttpResponseRedirect, JsonResponse, HttpResponse, HttpRequest
 from django.utils import timezone
@@ -208,12 +208,12 @@ def issue_jwt(request):
     }
 
 @users_router.post("/jwt/bohrium-proxy/callback")
-def callback_bohrium_proxy_jwt(request, data: JWTExchangeSchema):
+def callback_bohrium_proxy_jwt(request, external_jwt: str = Form(...), nexturl: str = Form(...)):
     """Callback for external JWT"""
 
     BOHRIUM_PROXY_JWT_PUBLIC_KEY = os.getenv("BOHRIUM_PROXY_JWT_PUBLIC_KEY")
     external_payload = jwt.decode(
-        data.external_jwt,
+        external_jwt,
         key=BOHRIUM_PROXY_JWT_PUBLIC_KEY,
         algorithms=["RS256"]
     )
@@ -241,7 +241,7 @@ def callback_bohrium_proxy_jwt(request, data: JWTExchangeSchema):
 
     # nexturl = f"{MODAL_JUPYTER_SERVICE_ENDPOINT}/users/{user_id}/sandbox"
     # nexturl = f"/api/users/dashboard"
-    nexturl = data.nexturl
+    # nexturl = data.nexturl
     
     auth_token = jwt_service.generate_token(user)
 
