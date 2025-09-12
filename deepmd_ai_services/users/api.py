@@ -225,8 +225,8 @@ def callback_bohrium_proxy_jwt(request, external_jwt: str = Form(...), nexturl: 
     external_id = user_data['user_id']
     user_id = f"user__bohrium-proxy__{external_id}"
     username = f"default_username__bohrium-proxy__{user_data['name']}"
-    organization = f"bohrium-proxy__{user_data['org_id']}"
-    email = user_data.get("email", None)
+    email = f"mock-email__bohrium-proxy__{external_id}@bohrium.com"
+    organization = f"bohrium-proxy__org__{user_data['org_id']}"
 
     user, created = User.objects.get_or_create(
         user_id=user_id,
