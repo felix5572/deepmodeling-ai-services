@@ -60,7 +60,7 @@ class JWTService:
     def __init__(self):
         self.django_jwt_private_key = os.getenv("DJANGO_JWT_PRIVATE_KEY")
         self.django_jwt_public_key = os.getenv("DJANGO_JWT_PUBLIC_KEY")
-        self.algorithm = "RS256"
+        # self.algorithm = "RS256"
     
     def generate_token(self, user: User, expire_in: int = 7*24*3600):
         payload = {
@@ -69,10 +69,10 @@ class JWTService:
             "auth_provider": user.auth_provider,
             "exp": timezone.now() + timedelta(seconds=expire_in)
         }
-        return jwt.encode(payload, self.django_jwt_private_key, algorithm=self.algorithm)
+        return jwt.encode(payload, self.django_jwt_private_key, algorithm="RS256")
     
     def validate_token(self, token: str):
-        payload = jwt.decode(token, self.django_jwt_public_key, algorithms=[self.algorithm])
+        payload = jwt.decode(token, self.django_jwt_public_key, algorithms=["RS256"])
         user_id = payload["user_id"]
         if user_id is None:
             raise jwt.InvalidTokenError("user_id cannot be None")
@@ -215,7 +215,7 @@ def callback_bohrium_proxy_jwt(request, data: JWTExchangeSchema):
     external_payload = jwt.decode(
         data.external_jwt,
         key=BOHRIUM_PROXY_JWT_PUBLIC_KEY,
-        options={"verify_signature": False}
+        algorithms=["RS256"]
     )
     user_data = external_payload['user_data']
     # user_id = 
