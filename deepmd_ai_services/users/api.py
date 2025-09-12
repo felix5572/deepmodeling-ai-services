@@ -208,7 +208,7 @@ def issue_jwt(request):
     }
 
 @users_router.post("/jwt/bohrium-proxy/callback")
-def callback_bohrium_proxy_jwt(request, external_jwt: str = Form(...), nexturl: str = Form(...)):
+def callback_bohrium_proxy_jwt(request, external_jwt: str = Form(...), nexturl: str = Form(DEFAULT_NEXTURL)):
     """Callback for external JWT"""
 
     BOHRIUM_PROXY_JWT_PUBLIC_KEY = os.getenv("BOHRIUM_PROXY_JWT_PUBLIC_KEY")
