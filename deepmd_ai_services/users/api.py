@@ -210,9 +210,11 @@ def issue_jwt(request):
 @users_router.post("/jwt/bohrium-proxy/callback")
 def callback_bohrium_proxy_jwt(request, data: JWTExchangeSchema):
     """Callback for external JWT"""
+
+    BOHRIUM_PROXY_JWT_PUBLIC_KEY = os.getenv("BOHRIUM_PROXY_JWT_PUBLIC_KEY")
     external_payload = jwt.decode(
         data.external_jwt,
-        key=os.getenv("BOHRIUM_PROXY_JWT_PUBLIC_KEY"),
+        key=BOHRIUM_PROXY_JWT_PUBLIC_KEY,
         options={"verify_signature": False}
     )
     user_data = external_payload['user_data']
@@ -270,7 +272,7 @@ def get_jwt(request, expire_in: int = 7*24*3600):
     if expire_in > 90*24*3600:
         res = {"error": "Expire time too long"}, 400 
     else:
-        auth_token = jwt_service.generate_token(request.user, expire_in)
+        auth_token = jwt_service.generate_token(request.user, expire_in=expire_in)
         res = {"auth_token": auth_token, "expires_in": expire_in}
     return res
     
