@@ -6,6 +6,7 @@ import modal
 import uvicorn
 from typing import ClassVar, Optional, Annotated
 from pydantic import Field
+import fastapi
 from fastapi import Request
 from fastapi.responses import PlainTextResponse
 
@@ -152,7 +153,7 @@ class DeepmdDpaLammpsMcp:
     # async def 
 
 
-
+mcp_provider = DeepmdDpaLammpsMcp(mcp_instance)
 
 # mcp_server = 
 
@@ -167,7 +168,6 @@ class DeepmdDpaLammpsMcp:
 #%%
 
 if __name__ == "__main__":
-    mcp_provider = DeepmdDpaLammpsMcp(mcp_instance)
     mcp_instance.run(transport="streamable-http", port=8002, host="0.0.0.0")
     # mcp_instance.http_app(transport="streamable-http", stateless_http=True)
 
