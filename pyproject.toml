@@ -39,6 +39,15 @@ dependencies = [
     "workos>=5.0.0",
     "django-ninja>=1.0.0",
     "loguru>=0.7.0",
+    "uvicorn>=0.30.0",
+    "google-adk>=1.1.0",
+    "fastmcp>=2.10.0",
+    "fastapi>=0.116.0",
+    "sqlalchemy>=2.0.0",
+    "requests>=2.31.0",
+    "aiofiles>=23.2.0",
+    "openmeter==1.0.0b188",
+    "cloudevents>=1.9.0"
 ]
 
 [project.optional-dependencies]
