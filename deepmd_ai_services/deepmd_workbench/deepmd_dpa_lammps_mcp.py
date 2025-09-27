@@ -13,12 +13,6 @@ from fastapi.responses import PlainTextResponse
 from deepmd_modal_run_service import get_lammps_simulation_executor_instance
 #%%
 
-#%%
-
-
-
-
-#%%
 mcp_instance = FastMCP(
     """DeepMD Run Service. Support long run lammps simulation and short run lammps simulation. 
     The environment is setup with CUDA and DeepMD-Kit 3.1.0 in modal T4 GPU environment."""
@@ -29,6 +23,27 @@ mcp_instance = FastMCP(
 # def run_lammps(lammps_script: str) -> str:
 #     """Run LAMMPS script"""
 #     return f"LAMMPS script: {lammps_script}"
+
+class McpLoggerProxy:
+    def __init__(self, ctx: Context):
+        self.ctx = ctx
+
+
+    def info(self, message: str):
+        logger.info(message)
+        self.ctx.info(message)
+
+    def warning(self, message: str):
+        logger.warning(message)
+        self.ctx.warning(message)
+
+    def error(self, message: str):
+        logger.error(message)
+        self.ctx.error(message)
+        
+    # def debug(self, message: str, logger_name: Optional[str] = None):
+    #     pass
+
 
 class DeepmdDpaLammpsMcp:
     is_initialization:bool = False
@@ -121,6 +136,9 @@ class DeepmdDpaLammpsMcp:
         buffer = []
         current_length = 0
 
+        total_output = []
+        
+
         # async for chunk in instance.lammps_simulation_stream.remote.aio(
         for chunk in self.personal_lammps_instance.lammps_simulation_stream.remote_gen(
             commands=commands, 
@@ -131,6 +149,7 @@ class DeepmdDpaLammpsMcp:
             line = chunk.decode()
             buffer.append(line)
             current_length += len(line)
+            total_output.append(line)
             
             if len(buffer) >= 20 or current_length >= 2000:
                 await ctx.info("".join(buffer))
@@ -139,8 +158,10 @@ class DeepmdDpaLammpsMcp:
         
         if buffer:
             await ctx.info("".join(buffer))
+
+        total_output_str = f"event: [DEEPMD] Simulation completed. total output: \n" + "".join(total_output)
         
-        return "Simulation completed"
+        return total_output_str
 
     async def dpa_freeze_model(self, ctx: Context = None) -> str:
         """
