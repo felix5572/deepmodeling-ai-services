@@ -12,6 +12,7 @@ from fastapi.responses import PlainTextResponse
 import hashlib
 from pathlib import Path
 from deepmd_modal_run_service import get_lammps_simulation_executor_instance
+import os
 #%%
 
 mcp_instance = FastMCP(
@@ -51,7 +52,7 @@ class DeepmdDpaLammpsMcp:
     personal_volume:modal.Volume = None
 
     personal_lammps_cls: modal.Cls = None
-    personal_lammps_instance = None
+    personal_lammps_instance: "LammpsSimulationExecutor" = None # type: ignore
 
 
     def __init__(self, mcp_instance: FastMCP, *, owner_user_id: str = 'default_unnamed_user'):
@@ -108,6 +109,16 @@ class DeepmdDpaLammpsMcp:
     async def health_check(self, request: Request) -> PlainTextResponse:
         return PlainTextResponse("OK")
 
+    async def write_file_to_job_dir(self, file_content: str, file_name: str, job_dir: Annotated[str, Field(description="The job directory to  put the file")] = '/workspace/'):
+        """
+        This function will write the file to the job directory.
+        Use this if you want to upload something your workspace.
+        """
+
+        with self.personal_lammps_instance.personal_volume.batch_upload() as batch:
+            batch.put_file(file_content, os.path.join(job_dir, file_name))
+        # with open(os.path.join(job_dir, file_name), "w") as f:
+
     
     async def submit_long_run_lammps_simulation(self,
         commands: Annotated[str, Field(description="The commands to run lammps")] = 'lmp -h', 
@@ -144,6 +155,10 @@ class DeepmdDpaLammpsMcp:
         current_length = 0
 
         total_output = []
+
+        # if lammps_input_script is not None:
+        #     with open(os.path.join(job_dir, "in.lammps"), "w") as f:
+        #         f.write(lammps_input_script)
         
 
         # async for chunk in instance.lammps_simulation_stream.remote.aio(
