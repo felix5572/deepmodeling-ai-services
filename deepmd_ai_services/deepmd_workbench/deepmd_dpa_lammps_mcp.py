@@ -9,7 +9,8 @@ from pydantic import Field
 import fastapi
 from fastapi import Request
 from fastapi.responses import PlainTextResponse
-
+import hashlib
+from pathlib import Path
 from deepmd_modal_run_service import get_lammps_simulation_executor_instance
 #%%
 
@@ -91,7 +92,12 @@ class DeepmdDpaLammpsMcp:
 
     # @mcp_instance.resource("config://version")
     def get_version(self): 
-        return "0.1.0"
+        # return
+        version_info = {
+            'file_name': Path(__file__).name,
+            'file_hash': hashlib.sha256(Path(__file__).read_bytes()).hexdigest()[:8]
+        }
+        return version_info
 
     def get_dpa_model_path(self):
         pass
@@ -125,7 +131,8 @@ class DeepmdDpaLammpsMcp:
     # @mcp_server.tool()
     async def short_run_lammps_simulation(self,
         commands: Annotated[str, Field(description="The commands to run lammps")] = 'lmp -h', 
-        job_dir: Annotated[str, Field(description="The job directory to run lammps")] = '/workspace/', 
+        job_dir: Annotated[str, Field(description="The job directory to run lammps")] = '/workspace/',
+        lammps_input_script: Annotated[Optional[str], Field(description="The input script to run lammps. Usually a multi-line script. Used for casesif it is not convenient to provide seperate in.lammps file. ")] = None,
         ctx: Context = None,
         ) -> str:
         """
