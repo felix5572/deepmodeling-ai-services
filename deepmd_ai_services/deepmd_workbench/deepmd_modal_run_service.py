@@ -104,7 +104,7 @@ default_personal_volume = modal.Volume.from_name(
 @app.cls(image=lammps_image, 
     gpu='T4',
     timeout=3600,
-    scaledown_window=10,
+    scaledown_window=20,
     restrict_modal_access=True,
     max_inputs=1
     )
@@ -162,10 +162,10 @@ class LammpsSimulationExecutor:
         program = commands_list[0]
         args = commands_list[1:]
 
-        logger.info(f"lammps stream running in {job_dir=} {os.listdir(job_dir)=}")
+        logger.info(f"lammps stream running in {self.owner_user_id=} {job_dir=} {os.listdir(job_dir)=} {commands_list=} {program=} {args=}")
 
-        yield f"data: [DEEPMD] Running in {job_dir=} {os.listdir(job_dir)=} , timeout: {timeout}s .\n\n".encode()
-        yield f"data: [DEEPMD] Running {program} {commands_list}, with args: {args}\n\n".encode()
+        yield f"data: [DEEPMD] Running in {self.owner_user_id=} {job_dir=} {os.listdir(job_dir)=} , {timeout=}s .\n\n".encode()
+        yield f"data: [DEEPMD] Running  {commands_list=}. {program=}, with args: {args=}\n\n".encode()
 
         yield f"data: [DEEPMD] ---origin LAMMPS output below---\n\n".encode()
 
@@ -175,16 +175,20 @@ class LammpsSimulationExecutor:
             shell=False,
             cwd=job_dir,
             stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.STDOUT
+            stderr=asyncio.subprocess.STDOUT,
         )
 
         try:
             async with asyncio.timeout(timeout):
+                line_count = 0
                 async for line in process.stdout:
+                    line_count += 1
+                    logger.info(f"{line_count=}:::{line=}")
                     yield line
 
                 return_code = await process.wait()
-            
+
+            yield f"data: [DEEPMD] Total lines received: {line_count=} last line: {line}\n\n".encode()
             yield f"data: [DEEPMD] ---finished origin LAMMPS simulation output above {return_code=}---\n\n".encode()
             
         except asyncio.TimeoutError:
@@ -203,6 +207,8 @@ class LammpsSimulationExecutor:
             except asyncio.TimeoutError:
                 process.kill()  # Force kill
                 yield f"data: [DEEPMD] [TIMEOUT] Force kill after {CLEANUP_TIMEOUT_SECONDS} seconds\n\n".encode()
+        except Exception as e:
+            yield f"data: [DEEPMD] [ERROR] {e}\n\n".encode()
         finally:
             logger.info(f"lammps stream finished in {job_dir=} {process.returncode=}.")
 
@@ -238,7 +244,7 @@ def get_lammps_simulation_executor_instance(owner_user_id: str = 'default_unname
     
 @app.cls(
     image=web_image, 
-    scaledown_window=20,
+    scaledown_window=60,
     # volumes={'/modal-shared/': agent_session_shared_volume},
     # volumes={'/public/': modal.Volume.from_name(name="deepmd-lammps-sessions-public", create_if_missing=True)},
     # volumes={'/app/data/': modal.Volume.from_name(name="deepmd-agent-services-data")},
@@ -368,7 +374,7 @@ class DPLammpsService:
         @fastapi_app.get("/test-lammps-stream")
         async def test_lammps_stream_endpoint():
             return StreamingResponse(
-                self.personal_lammps_instance.lammps_simulation_stream.remote_gen(commands="lmp -h", job_dir="/workspace/", timeout=30),
+                self.personal_lammps_instance.lammps_simulation_stream.remote_gen(commands="lmp -h", job_dir="/workspace/", timeout=20),
                 media_type="text/event-stream"
             )
 
@@ -382,7 +388,7 @@ class DPLammpsService:
             files: list[UploadFile] = File([], description="The files to run lammps, will be saved to the workdir, with file basename"), 
             commands: str = Form('lmp -h', description="The commands to run lammps"), 
             job_dir: Optional[str] = Form('/workspace/', description="The job_dir of the lammps simulation. default is /workspace/"),
-            timeout: Optional[int] = Form(20, description="The timeout of the lammps simulation. default is 20 to just test the service"),
+            timeout: Optional[int] = Form(40, description="The timeout of the lammps simulation. default is 20 to just test the service"),
             # basedir: Optional[str] = Form('/workspace/', description="The basedir of the lammps simulation.  /workspace/ or subfolder. it will combine job_dir/ (default auto generated) "),
             # job_dirname: Optional[str] = Form(None, description="(default auto generated if is None. set to empty to disable auto generated).it will combine `basedir` ")
         ):
