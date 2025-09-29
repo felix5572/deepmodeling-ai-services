@@ -48,7 +48,24 @@ class AuthMiddleware(BaseHTTPMiddleware):
         
         return await call_next(request)
 
-    def _get_owner_user_id(self, request: Request) -> str:
+    @classmethod
+    def get_auth_token(cls, request: Request) -> str:
+
+        # owner_user_id = cls._get_owner_user_id(request=request)
+        auth_token = cls._extract_token(request=request)
+
+        payload = cls._validate_token(auth_token=auth_token)
+        return auth_token
+
+    @classmethod
+    def get_owner_user_id(cls, request: Request) -> str:
+        auth_token = cls.get_auth_token(request=request)
+        payload = cls._validate_token(auth_token=auth_token)
+        owner_user_id = payload.get("user_id")
+        return owner_user_id
+
+    @staticmethod
+    def _get_owner_user_id(request: Request) -> str:
         path_owner_user_id = request.path_params.get("owner_user_id")
         query_owner_user_id = request.query_params.get("owner_user_id")
         if path_owner_user_id and query_owner_user_id:
@@ -62,7 +79,8 @@ class AuthMiddleware(BaseHTTPMiddleware):
         
         return owner_user_id
     
-    def _extract_token(self, request: Request) -> str:
+    @staticmethod
+    def _extract_token(request: Request) -> str:
         # Authorization header
         auth_header = request.headers.get("Authorization")
         auth_token = None
@@ -74,13 +92,14 @@ class AuthMiddleware(BaseHTTPMiddleware):
         # Query parameter
         elif request.query_params.get("auth_token"):
             auth_token = request.query_params.get("auth_token")
-        elif request.headers.get("X-Deepmd-Auth-Token"):
-            auth_token = request.headers.get("X-Deepmd-Auth-Token")
+        elif request.headers.get("X-Deepmd-User-Auth-Token"):
+            auth_token = request.headers.get("X-Deepmd-User-Auth-Token")
         else:
             pass
         return auth_token
     
-    def _validate_token(self, auth_token: str) -> dict:
+    @staticmethod
+    def _validate_token(auth_token: str) -> dict:
         # DJANGO_JWT_PUBLIC_KEY = os.environ["DJANGO_JWT_PUBLIC_KEY"]
         payload = jwt.decode(auth_token, DJANGO_JWT_PUBLIC_KEY, algorithms=["RS256"])
         if not payload.get("user_id"):
