@@ -158,7 +158,7 @@ def auth_success(request, auth_token: str, nexturl: str):
             <p>redirecting to target page... nexturl: {nexturl}</p>
             <p>redirecting to target page... your jwt token: {auth_token}</p>
             <script>
-                setTimeout(() => window.location.href = '{nexturl}?{auth_token}', 3000);
+                setTimeout(() => window.location.href = '{nexturl}?auth_token={auth_token}', 3000);
             </script>
         </body>
     </html>

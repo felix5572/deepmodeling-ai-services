@@ -95,7 +95,7 @@ class AuthMiddleware(BaseHTTPMiddleware):
         elif request.headers.get("X-Deepmd-User-Auth-Token"):
             auth_token = request.headers.get("X-Deepmd-User-Auth-Token")
         else:
-            pass
+            raise HTTPException(status_code=401, detail="Missing auth token")
         return auth_token
     
     @staticmethod
