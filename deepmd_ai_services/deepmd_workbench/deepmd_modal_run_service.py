@@ -70,7 +70,7 @@ lammps_image = (
     ])
     .run_commands([
         "lmp -h"
-    ]).add_local_python_source("deepmd_lammps_template","draft_metering_midware"
+    ]).add_local_python_source("deepmd_lammps_template","draft_metering_midware", "deepmd_auth_midware"
 ))
 
 
@@ -85,12 +85,21 @@ web_image = (
     # ).add_local_dir("agent_services", "/app/agent_services")
 )
 
+public_volume = modal.Volume.from_name(
+    name="jupyterlab-public",
+    create_if_missing=True
+)
 
 
 app_name = "deepmd-run-service"
-app = modal.App(name=app_name,  secrets=[modal.Secret.from_name("openmeter-token")])
+app = modal.App(name=app_name,  secrets=[modal.Secret.from_name("openmeter-token")], volumes={"/public/": public_volume.read_only()})
 
 #%% 
+default_personal_volume = modal.Volume.from_name(
+    name="jupyterlab-personal-default_unnamed_user",
+    create_if_missing=True
+)
+
 
 @app.cls(image=lammps_image, 
     gpu='T4',
@@ -103,10 +112,10 @@ class LammpsSimulationExecutor:
 
     owner_user_id: str = modal.parameter(default='default_unnamed_user')
 
+    personal_volume: modal.Volume = modal.parameter(default=default_personal_volume, init=False)
+
     @modal.method()
     def setup_before_enter(self):
-        
-        
         pass
 
     @modal.method()
@@ -143,6 +152,8 @@ class LammpsSimulationExecutor:
     @modal.method(is_generator=True)
     async def lammps_simulation_stream(self, commands: Union[str, list[str]], job_dir: str = '/workspace/', timeout: int = DEFAULT_LAMMPS_TIMEOUT_SECONDS):
         max_seconds = DEFAULT_LAMMPS_TIMEOUT_SECONDS
+
+        yield f"data: [DEEPMD] remote stream executing {self.owner_user_id=} ...\n\n".encode()
         yield f"data: [DEEPMD] Starting LAMMPS (timeout: {max_seconds}s)...\n\n".encode()
         
         
@@ -151,10 +162,10 @@ class LammpsSimulationExecutor:
         program = commands_list[0]
         args = commands_list[1:]
 
-        logger.info(f"lammps stream running in job_dir: {commands_list=}, {timeout=}, {job_dir=}.")
+        logger.info(f"lammps stream running in {job_dir=} {os.listdir(job_dir)=}")
 
-        yield f"data: [DEEPMD] Running in job_dir: {job_dir} , timeout: {timeout}s .\n\n".encode()
-        yield f"data: [DEEPMD] Running program: {program} , with args: {args}\n\n".encode()
+        yield f"data: [DEEPMD] Running in {job_dir=} {os.listdir(job_dir)=} , timeout: {timeout}s .\n\n".encode()
+        yield f"data: [DEEPMD] Running {program} {commands_list}, with args: {args}\n\n".encode()
 
         yield f"data: [DEEPMD] ---origin LAMMPS output below---\n\n".encode()
 
@@ -195,6 +206,10 @@ class LammpsSimulationExecutor:
         finally:
             logger.info(f"lammps stream finished in {job_dir=} {process.returncode=}.")
 
+    # @modal.method()
+
+        
+
 
 @app.function(image=lammps_image)
 def get_lammps_simulation_executor_instance(owner_user_id: str = 'default_unnamed_user'):
@@ -219,113 +234,6 @@ def get_lammps_simulation_executor_instance(owner_user_id: str = 'default_unname
 # @app.function(image=image, gpu='T4')
 # def lammps_simulation_stream(*commands: str, ):
 #     pass
-
-
-# class LammpsSimulationStreamParams(BaseModel):
-#     commands: list[str]
-#     # files: list[UploadFile]
-#     basedir: Optional[str]
-#     timeout: Optional[int]
-
-#%%
-
-# class AuthMiddleware(BaseHTTPMiddleware):
-#     def __init__(self, app, allowed_tokens: set):
-#         super().__init__(app)
-#         self.allowed_tokens = allowed_tokens
-    
-#     async def dispatch(self, request, call_next):
-#         # 跳过健康检查
-#         if request.url.path in ["/health", "/info"]:
-#             return await call_next(request)
-        
-#         # 检查认证
-#         auth_header = request.headers.get("Authorization", "")
-#         if not auth_header.startswith("Bearer "):
-#             return JSONResponse({"error": "Missing token"}, status_code=401)
-        
-#         token = auth_header[7:]
-#         if token not in self.allowed_tokens:
-#             return JSONResponse({"error": "Invalid token"}, status_code=403)
-        
-#         return await call_next(request)
-
-class AuthMiddleware(BaseHTTPMiddleware):
-    async def dispatch(self, request: Request, call_next):
-
-        bypass_paths = ["/health", "/docs", "/openapi.json", "/info", 
-            "/proxy-mcp/docs", "/proxy-agent/docs", "/proxy-mcp/openapi.json", "/proxy-agent/openapi.json"
-        ]
-
-        if request.url.path in bypass_paths:
-            return await call_next(request)
-
-
-        owner_user_id = self._get_owner_user_id(request=request)
-        auth_token = self._extract_token(request)
-
-        if not auth_token and owner_user_id=='default_unnamed_user':
-            return await call_next(request)
-
-        if not auth_token:
-            raise HTTPException(status_code=401, detail="Missing auth token")
-        
-        try:
-            payload = self._validate_token(auth_token)
-            request.state.user = payload 
-        except jwt.InvalidTokenError as e:
-            raise HTTPException(status_code=401, detail=f"Invalid token. {payload=} {auth_token=} {e=}")
-
-        if owner_user_id and ( owner_user_id != payload["user_id"] ):
-            raise HTTPException(status_code=403, detail=f"owner_user_id does not match token user_id. {owner_user_id=} != {payload['user_id']=}")
-        
-        return await call_next(request)
-
-    def _get_owner_user_id(self, request: Request) -> str:
-        path_owner_user_id = request.path_params.get("owner_user_id")
-        query_owner_user_id = request.query_params.get("owner_user_id")
-        if path_owner_user_id and query_owner_user_id:
-            if path_owner_user_id != query_owner_user_id:
-                raise HTTPException(
-                    status_code=400,
-                    detail=f"Inconsistent owner_user_id: {path_owner_user_id=} vs {query_owner_user_id=}"
-                )
-        
-        owner_user_id = path_owner_user_id or query_owner_user_id or 'default_unnamed_user'
-        
-        return owner_user_id
-    
-    def _extract_token(self, request: Request) -> str:
-        # Authorization header
-        auth_header = request.headers.get("Authorization")
-        if auth_header and auth_header.startswith("Bearer "):
-            return auth_header[7:]
-        
-        # Cookie
-        if request.cookies.get("auth_token"):
-            return request.cookies.get("auth_token")
-        
-        # Query parameter
-        if request.query_params.get("auth_token"):
-            return request.query_params.get("auth_token")
-        
-        return None
-    
-    def _validate_token(self, auth_token: str) -> dict:
-
-        DJANGO_JWT_PUBLIC_KEY = os.environ["DJANGO_JWT_PUBLIC_KEY"]
-        payload = jwt.decode(auth_token, DJANGO_JWT_PUBLIC_KEY, algorithms=["RS256"])
-        if not payload.get("user_id"):
-            raise jwt.InvalidTokenError(f"user_id cannot be None {payload=} {auth_token=}")
-        return payload
-
-
-
-
-
-#%%
-
-    
 
     
 @app.cls(
@@ -358,13 +266,13 @@ class DPLammpsService:
         self.personal_lammps_instance = self.personal_lammps_cls(owner_user_id=self.owner_user_id)
 
         
-        DeepmdAgentServices_cls = modal.Cls.from_name(app_name='deepmd-run-service',
-            name='DeepmdAgentServices'
-        )
+        # DeepmdAgentServices_cls = modal.Cls.from_name(app_name='deepmd-run-service',
+        #     name='DeepmdAgentServices'
+        # )
         
-        self.personal_agent_cls = DeepmdAgentServices_cls.with_options(
-            volumes={'/workspace/': self.personal_volume}
-        )
+        # self.personal_agent_cls = DeepmdAgentServices_cls.with_options(
+        #     volumes={'/workspace/': self.personal_volume}
+        # )
 
         # self.personal_agent_cls = DeepmdAgentServices.with_options(
         #     volumes={'/workspace/': self.personal_volume}
@@ -372,10 +280,10 @@ class DPLammpsService:
 
         # self.personal_agent_cls.hydrate()
 
-        self.personal_agent_instance = self.personal_agent_cls(
-            owner_user_id=self.owner_user_id,
+        # self.personal_agent_instance = self.personal_agent_cls(
+        #     owner_user_id=self.owner_user_id,
             # personal_lammps_instance=self.personal_lammps_instance
-            )
+            # )
 
         # logger.info(f" {self.personal_agent_instance.agent_app.get_web_url()=}")
         # logger.info(f" {self.personal_agent_instance.check_status.remote()=}")
@@ -387,15 +295,15 @@ class DPLammpsService:
         # self.remote_url = self.personal_agent_instance.check_status.get_web_url()
         # self.agent_status = self.personal_agent_instance.agent_app.get_current_stats()
 
-        self.remote_response = self.personal_agent_instance.handle_request.remote(request=None)
+        # self.remote_response = self.personal_agent_instance.handle_request.remote(request=None)
 
         
 
-        logger.info(f" {self.personal_volume.listdir('/')=}")
+        # logger.info(f" {self.personal_volume.listdir('/')=}")
         # logger.info(f" {self.agent_app=}")
         # logger.info(f" {self.agent_app.get_web_url()=}")
         # logger.info(f" {self.remote_url=}")
-        logger.info(f" {self.remote_response=}")
+        # logger.info(f" {self.remote_response=}")
         # logger.info(f" {self.agent_status=}")
         # logger.info(f" {os.listdir('/')=} ")
         # logger.info(f" {os.listdir('/workspace/')=}")
@@ -435,7 +343,7 @@ class DPLammpsService:
         # fastapi_app = FastAPI(title="LAMMPS Service", lifespan=lifespan)
         fastapi_app = FastAPI(title="LAMMPS Service")
         # fastapi_app.mount("/agent-proxy", agent_app)
-        # fastapi_app.add_middleware(AuthMiddleware)
+        fastapi_app.add_middleware(AuthMiddleware)
 
         # fastapi_app.mount("/agent-proxy", agent_app)
         # fastapi_app.mount("/", self.agent_app)
@@ -445,15 +353,22 @@ class DPLammpsService:
         #     return self.personal_agent_instance.handle_request.remote(request=request)
 
         
+        # @fastapi_app.get("/test-lammps-stream")
+        # async def test_lammps_stream_endpoint():
+        #     # user_cls = LammpsSimulationExecutor.with_options(
+        #     #     volumes={'/workspace/': modal.Volume.from_name(name="jupyterlab-personal-test_user")}
+        #     #     )
+        #     # instance = user_cls(owner_user_id="test_user")
+
+        #     return StreamingResponse(
+        #         test_lammps_stream.remote_gen(),
+        #         media_type="text/event-stream"
+        #     )
+
         @fastapi_app.get("/test-lammps-stream")
         async def test_lammps_stream_endpoint():
-            # user_cls = LammpsSimulationExecutor.with_options(
-            #     volumes={'/workspace/': modal.Volume.from_name(name="jupyterlab-personal-test_user")}
-            #     )
-            # instance = user_cls(owner_user_id="test_user")
-
             return StreamingResponse(
-                test_lammps_stream.remote_gen(),
+                self.personal_lammps_instance.lammps_simulation_stream.remote_gen(commands="lmp -h", job_dir="/workspace/", timeout=30),
                 media_type="text/event-stream"
             )
 
@@ -465,24 +380,32 @@ class DPLammpsService:
         async def lammps_simulation_stream_endpoint(
             request: Request,
             files: list[UploadFile] = File([], description="The files to run lammps, will be saved to the workdir, with file basename"), 
-            commands: str = Form(..., description="The commands to run lammps"), 
+            commands: str = Form('lmp -h', description="The commands to run lammps"), 
+            job_dir: Optional[str] = Form('/workspace/', description="The job_dir of the lammps simulation. default is /workspace/"),
             timeout: Optional[int] = Form(20, description="The timeout of the lammps simulation. default is 20 to just test the service"),
-            basedir: Optional[str] = Form('/workspace/', description="The basedir of the lammps simulation.  /workspace/ or subfolder. it will combine job_dir/ (default auto generated) "),
-            job_dirname: Optional[str] = Form(None, description="(default auto generated if is None. set to empty to disable auto generated).it will combine `basedir` ")
+            # basedir: Optional[str] = Form('/workspace/', description="The basedir of the lammps simulation.  /workspace/ or subfolder. it will combine job_dir/ (default auto generated) "),
+            # job_dirname: Optional[str] = Form(None, description="(default auto generated if is None. set to empty to disable auto generated).it will combine `basedir` ")
         ):
             
-            logger.info(f"lammps stream running in job_dir: {job_dirname=} {type(job_dirname)=} .")  
+            logger.info(f"lammps stream running in job_dir: {job_dir=} {type(job_dir)=} .") 
 
-            if job_dirname is None:
-                job_dirname = f"lammps-{datetime.now().astimezone().strftime('%Y%m%d-%H%M%S%Z')}-{secrets.token_hex(4)}/"
+            if not job_dir.startswith('/workspace/'):
+                logger.warning(f"job_dir usually start with '/workspace/'. got {job_dir=}.")
             else:
                 pass
 
-            job_dir = os.path.join(basedir, job_dirname)
+            # if job_dir is None:
+
+            # if job_dirname is None:
+            #     job_dirname = f"lammps-{datetime.now().astimezone().strftime('%Y%m%d-%H%M%S%Z')}-{secrets.token_hex(4)}/"
+            # else:
+            #     pass
+
+            # job_dir = os.path.join(basedir, job_dirname)
 
             job_dir_in_volume = job_dir.strip("/workspace")
 
-            logger.info(f"lammps stream running in job_dir: {self.owner_user_id=} {commands=}, {timeout=}, {basedir=}, {job_dirname=} {self.personal_volume=} {job_dir_in_volume=}.")  
+            logger.info(f"lammps stream running in job_dir: {self.owner_user_id=} {commands=}, {timeout=}, {job_dir=} {self.personal_volume=} {job_dir_in_volume=}.")  
 
             
             with self.personal_volume.batch_upload() as batch:
