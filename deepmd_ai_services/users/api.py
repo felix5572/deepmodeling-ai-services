@@ -156,7 +156,7 @@ def auth_success(request, auth_token: str, nexturl: str):
         <body style="font-family: Arial; text-align: center; padding: 50px;">
             <h2>🎉 auth success!</h2>
             <p>redirecting to target page... nexturl: {nexturl}</p>
-            <p>redirecting to target page... your jwt token: {auth_token}</p>
+            <p>redirecting to target page... your jwt token:     {auth_token}</p>
             <script>
                 setTimeout(() => window.location.href = '{nexturl}?auth_token={auth_token}', 3000);
             </script>

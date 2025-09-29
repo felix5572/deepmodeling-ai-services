@@ -28,9 +28,11 @@ class AuthMiddleware(BaseHTTPMiddleware):
             return await call_next(request)
 
 
-        owner_user_id = self._get_owner_user_id(request=request)
+        
         auth_token = self._extract_token(request)
-
+        # jwt_user_id = aut
+        owner_user_id = self.get_owner_user_id(request=request)
+    
         if not auth_token and owner_user_id=='default_unnamed_user':
             return await call_next(request)
 
@@ -58,14 +60,7 @@ class AuthMiddleware(BaseHTTPMiddleware):
         return auth_token
 
     @classmethod
-    def get_owner_user_id(cls, request: Request) -> str:
-        auth_token = cls.get_auth_token(request=request)
-        payload = cls._validate_token(auth_token=auth_token)
-        owner_user_id = payload.get("user_id")
-        return owner_user_id
-
-    @staticmethod
-    def _get_owner_user_id(request: Request) -> str:
+    def get_owner_user_id(cls,request: Request) -> str:
         path_owner_user_id = request.path_params.get("owner_user_id")
         query_owner_user_id = request.query_params.get("owner_user_id")
         if path_owner_user_id and query_owner_user_id:
@@ -75,9 +70,19 @@ class AuthMiddleware(BaseHTTPMiddleware):
                     detail=f"Inconsistent owner_user_id: {path_owner_user_id=} vs {query_owner_user_id=}"
                 )
         
-        owner_user_id = path_owner_user_id or query_owner_user_id or 'default_unnamed_user'
+        # payload = self._validate_token(auth_token=auth_token)
+        # jwt_owner_user_id = self._extract_token(request=request)
         
+        owner_user_id = path_owner_user_id or query_owner_user_id or cls.get_jwt_user_id(request=request)
+
         return owner_user_id
+
+    @classmethod
+    def get_jwt_user_id(cls, request: Request) -> str:
+        auth_token = cls._extract_token(request=request)
+        payload = cls._validate_token(auth_token=auth_token)
+        jwt_user_id = payload.get("user_id")
+        return jwt_user_id
     
     @staticmethod
     def _extract_token(request: Request) -> str:
