@@ -24,7 +24,12 @@ users_router = Router()
 # MODAL_JUPYTER_SERVICE_ENDPOINT=""
 # Schemas
 # default_nexturl = 
-DEFAULT_NEXTURL = "/api/users/dashboard"
+# DEFAULT_NEXTURL = "/api/users/dashboard"
+
+# https://deepmodeling--deepmd-jupyterlab-jupyterlaborch-api-gateway.modal.run/users/test_user_002/sandbox
+DEFAULT_NEXTURL = "https://deepmodeling--deepmd-jupyterlab-jupyterlaborch-api-gateway.modal.run/users/me/sandbox"
+
+
 class JWTExchangeSchema(Schema):
     external_jwt: str
     nexturl: str = Field(default=DEFAULT_NEXTURL)
@@ -139,7 +144,7 @@ def workos_callback(request, code: str, state: str = None):
         nexturl = DEFAULT_NEXTURL
     
     redirect_url = f"/api/users/auth/success?auth_token={auth_token}&nexturl={nexturl}"
-    response = HttpResponseRedirect(redirect_url)
+    response = HttpResponseRedirect(redirect_url, status_code=303)
 
     return response
 
@@ -153,7 +158,7 @@ def auth_success(request, auth_token: str, nexturl: str):
             <p>redirecting to target page... nexturl: {nexturl}</p>
             <p>redirecting to target page... your jwt token: {auth_token}</p>
             <script>
-                setTimeout(() => window.location.href = '{nexturl}', 1000);
+                setTimeout(() => window.location.href = '{nexturl}?{auth_token}', 3000);
             </script>
         </body>
     </html>
@@ -169,6 +174,9 @@ def auth_success(request, auth_token: str, nexturl: str):
         samesite="lax"
     )
     return response
+
+
+# @users_router.get("/auth/logout")
 
 @users_router.get("/dashboard")
 @auth_required  
