@@ -10,13 +10,13 @@ import litellm
 import os
 from google.adk.code_executors import BuiltInCodeExecutor
 # import dotenv
-from dotenv import load_dotenv
+# from dotenv import load_dotenv
 
 #%%
 # os.environ["LITELLM_PROXY_API_BASE"] = "https://litellm.deepmd.us"
 # os.environ["LITELLM_PROXY_API_KEY"] = "sk-...XOOw"
 
-load_dotenv()
+# load_dotenv()
 
 # os.environ["GOOGLE_API_KEY"] = 'AI..._cQ'
 
