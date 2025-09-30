@@ -43,4 +43,4 @@ EXPOSE 8001
 # Create startup script with all config via command line
 
 # Start command
-CMD ["adk",  "web", "--port", "8001", "--session_service_uri=sqlite:////app/deepmd_agent_sessions.db", "--allow_origins=*", "--host", "0.0.0.0",  "./"]
+CMD ["adk",  "web", "--port", "8001", "--session_service_uri=sqlite:////workspace/deepmd_agent_sessions.db", "--allow_origins=*", "--host", "0.0.0.0",  "./"]
