@@ -86,8 +86,8 @@ deepmd_lammps_mcp_toolset = McpToolset(
 
 deepmd_docs_rag_toolset = McpToolset(
     connection_params=StreamableHTTPConnectionParams(
-        url="http://localhost:8002/mcp",
-        # url="https://zqibhdki.sealosbja.site/api/mcp/app/tRmg19AXvG2GL46rZXadjsIb/mcp",
+        # url="http://localhost:8002/mcp",
+        url="https://zqibhdki.sealosbja.site/api/mcp/app/tRmg19AXvG2GL46rZXadjsIb/mcp",
         # url="https://deepmodeling--deepmd-lammps-agent-services-mcp-app.modal.run", # remote mcp
         timeout=300,
         
