@@ -24,16 +24,16 @@ litellm.use_litellm_proxy = True
 
 # model_original = "gemini-2.5-flash"
 
-# general_model = LiteLlm(model="gemini/gemini-2.5-flash"
-#     , api_base=os.getenv("LITELLM_PROXY_API_BASE"),
-#     api_key=os.getenv("LITELLM_PROXY_API_KEY"),
-#     )
-general_model = LiteLlm(model="gemini/deepseek-chat"
+general_model = LiteLlm(model="gemini/gemini-2.5-flash"
     , api_base=os.getenv("LITELLM_PROXY_API_BASE"),
     api_key=os.getenv("LITELLM_PROXY_API_KEY"),
     )
+# general_model = LiteLlm(model="gemini/deepseek-chat"
+#     , api_base=os.getenv("LITELLM_PROXY_API_BASE"),
+#     api_key=os.getenv("LITELLM_PROXY_API_KEY"),
+#     )
 
-coding_model = LiteLlm(model='deepseek/deepseek-chat',
+coding_model = LiteLlm(model='gemini/gemini-2.5-flash',
     api_base=os.getenv("LITELLM_PROXY_API_BASE"),
     api_key=os.getenv("LITELLM_PROXY_API_KEY"),
 )
