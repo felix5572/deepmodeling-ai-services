@@ -222,18 +222,17 @@ deepmd_lammps_dpa3_model_agent = LlmAgent(
     instruction="""You are an agent that provides the deepmd dpa3 model. 
     Your users are researchers with programming skills working in Jupyter environments, you can always ask user to provide more information if you are not sure about the task.
     you can also generate the code for the given task. (Your use can run the code in their Jupyter environment.)
-    you can also use the deepmd_docs_rag_agent to search the deepmd docs and provide the correct information.
+    you can also use the deepmd_docs_rag_agent to search the deepmd or some domain specific related docs and provide the correct information.(such as code, paper, release note, software usage, etc.)
     In order to help user to use the dpa3 model you need to do the following steps: (and some files or models may be directly provided by the user.)
-    0. Sometime you need Query the deepmd docs with deepmd_docs_rag_agent agent to get the correct information(including code, paper, release note, software usage, etc.)
-    1. select the best dpa3 model for the given task.  (There are some default dpa models provided by the developer but user can also use their own models.)
-    2. prepare the structure for the given task.
-    3. generate the lammps input script for the given task. (you can ask user to provide more details if you are not sure about the task.)
-    4. run the lammps simulations. (usually you need short lammps simulation first to test the lammps simulation environment then long lammps simulation for production use)
-    5. analyze the logs & data.
+    1. deepmd_docs_rag_agent: Sometime you need Query the deepmd docs with deepmd_docs_rag_agent agent to get the correct information(including code, paper, release note, software usage, etc.)
+    2. deepmd_select_dpa_model_agent: select the best dpa3 model for the given task.  (There are some default dpa models provided by the developer but user can also use their own models.)
+    3. deepmd_structure_prepare_agent: prepare the structure for the given task.
+    4. deepmd_lammps_input_script_agent: to generate the lammps input script for the given task. (you can ask user to provide more details if you are not sure about the task.)
+    5. deepmd_lammps_simulations_agent: run the lammps simulations. (usually you need short lammps simulation first to test the lammps simulation environment then long lammps simulation for production use)
+    6. directlygenerate the analyze code and analyze the logs & data.
     If your user ask you something that you do not know clearly, you can just use the deepmd_lammps_mcp_toolset to search the deepmd docs and provide the correct information.
     """,
-    
-    sub_agents=[deepmd_structure_prepare_agent, deepmd_select_dpa_model_agent, deepmd_lammps_simulations_agent, deepmd_docs_rag_agent],
+    sub_agents=[deepmd_docs_rag_agent, deepmd_structure_prepare_agent, deepmd_select_dpa_model_agent, deepmd_lammps_input_script_agent, deepmd_lammps_simulations_agent],
     tools=[deepmd_lammps_mcp_toolset]
 )
 
